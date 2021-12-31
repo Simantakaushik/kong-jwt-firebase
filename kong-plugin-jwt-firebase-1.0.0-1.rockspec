@@ -1,7 +1,7 @@
 package = "kong-plugin-jwt-firebase"
 version = "1.0.0-1"
 source = {
-  url = "https://github.com/hpsony94/kong-plugin-jwt-firebase",
+  url = "git://github.com/simantakaushik/kong-plugin-jwt-firebase",
 }
 description = {
   summary = "This plugin allows Kong to verify JWT Firebase Token.",
@@ -9,7 +9,7 @@ description = {
 }
 dependencies = {
   "lua >= 5.1",
-  --"kong >= 1.1"
+  --"kong >= 2.0"
 }
 build = {
   type = "builtin",
