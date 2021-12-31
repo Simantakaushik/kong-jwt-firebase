@@ -1,6 +1,5 @@
 ## JWT Firebase custom [Kong](https://www.getkong.org) plugins
 
-Contents:
 #### This suports kong version 2.0+.
 #### JWT Firbase plugin
 This plugin is basically to verify the JWT Firbase Token following the [firebase doc](https://firebase.google.com/docs/auth/admin/verify-id-tokens)
