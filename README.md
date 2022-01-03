@@ -1,6 +1,6 @@
 ## JWT Firebase custom [Kong](https://www.getkong.org) plugins
 
-#### This is forked from original repo to support kong version 2.0+ and adding ability to define an anonymous user.
+#### This is forked from original repo to support kong version 2.0+ and adding ability to define an anonymous user and JWT service user.
 #### JWT Firbase plugin
 This plugin is basically to verify the JWT Firbase Token following the [firebase doc](https://firebase.google.com/docs/auth/admin/verify-id-tokens)
 What we need to run this plugin is just the firebase project name.
