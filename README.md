@@ -9,7 +9,7 @@ What we need to run this plugin is just the firebase project name.
 [Plugin development](https://docs.konghq.com/0.14.x/plugin-development/distribution/) by Kong
 ###### Install the plugin into Kong
 ```bash
-luarocks install https://github.com/Simantakaushik/kong-plugin-jwt-firebase/raw/master/kong-plugin-jwt-firebase-1.0.0-1.all.rock
+luarocks install https://github.com/Simantakaushik/kong-plugin-jwt-firebase/raw/master/kong-jwt-firebase-2.0.0-22.all.rock
 ```
 ###### Load the plugin by kong.conf file
 - By editting the kong.conf file 
