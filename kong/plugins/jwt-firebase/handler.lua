@@ -3,7 +3,6 @@ local local_constants = require "kong.plugins.jwt-firebase.constants"
 local jwt_decoder = require "kong.plugins.jwt.jwt_parser"
 local openssl_pkey = require "openssl.pkey"
 
-
 local shm = "/dev/shm/kong.jwt-firebase.pubkey"
 local fmt = string.format
 local kong = kong
@@ -16,7 +15,6 @@ local ngx_set_header = ngx.req.set_header
 
 local JwtHandler = {}
 
-
 JwtHandler.PRIORITY = 70
 JwtHandler.VERSION = "1.0.0"
 
@@ -25,48 +23,47 @@ JwtHandler.VERSION = "1.0.0"
 -- and use a JWT library to verify the signature. Use the value of max-age in the Cache-Control header of the response 
 -- from that endpoint to know when to refresh the public keys.
 local function grab_public_key_bykid(t_kid)
-  kong.log.debug("### grab_public_key_bykid() " .. t_kid)
-  kong.log.debug("### Grabbing pubkey from google ..")
-  local google_url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
-  local magic = " | cut -d \"\\\"\" -f4- | sed 's/\\\\n/\\n/g\' | sed 's/\"//g' | openssl x509 -pubkey -noout"
-  local cmd = "curl -s " .. google_url .. " | grep -i " .. t_kid .. magic
+    kong.log.debug("### grab_public_key_bykid() " .. t_kid)
+    kong.log.debug("### Grabbing pubkey from google ..")
+    local google_url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
+    local magic = " | cut -d \"\\\"\" -f4- | sed 's/\\\\n/\\n/g\' | sed 's/\"//g' | openssl x509 -pubkey -noout"
+    local cmd = "curl -s " .. google_url .. " | grep -i " .. t_kid .. magic
 
-  kong.log.debug("### cmd: " .. cmd)
-  local cmd_handle = io.popen(cmd)
-  local public_key = cmd_handle:read("*a")
-  cmd_handle:close()
-  kong.log.debug ("### public_key : " .. public_key)
+    kong.log.debug("### cmd: " .. cmd)
+    local cmd_handle = io.popen(cmd)
+    local public_key = cmd_handle:read("*a")
+    cmd_handle:close()
+    kong.log.debug("### public_key : " .. public_key)
 
-  return public_key
+    return public_key
 end
-
 
 --- Push public key into /dev/shm
 local function push_public_key_into_file(publickey, dir)
-  kong.log.debug("### push_public_key_into_file() - " .. publickey .. " - "  .. dir)
-  local cmd = "echo -n \"" .. publickey .. "\" > " .. shm
-  kong.log.debug("### cmd: " ..  cmd)
+    kong.log.debug("### push_public_key_into_file() - " .. publickey .. " - " .. dir)
+    local cmd = "echo -n \"" .. publickey .. "\" > " .. shm
+    kong.log.debug("### cmd: " .. cmd)
 
-  local cmd_handle, err = io.popen(cmd)
-  if not cmd_handle then
-    cmd_handlel:close()
-    return false
-  end
-  cmd_handle:close()
-  return true
+    local cmd_handle, err = io.popen(cmd)
+    if not cmd_handle then
+        cmd_handlel:close()
+        return false
+    end
+    cmd_handle:close()
+    return true
 end
 
 --- Get the public key from /dev/shm
 local function get_public_key_from_file(dir)
-  kong.log.debug("### get_public_key_from_file(): " .. dir)
-  local file, err = io.open(dir, "r")
-  if not file then
-    return nil
-  end
-  io.input(file)
-  content = io.read("*a")
-  io.close(file)
-  return content
+    kong.log.debug("### get_public_key_from_file(): " .. dir)
+    local file, err = io.open(dir, "r")
+    if not file then
+        return nil
+    end
+    io.input(file)
+    content = io.read("*a")
+    io.close(file)
+    return content
 end
 
 --- Retrieve a JWT in a request.
@@ -77,176 +74,260 @@ end
 -- @return token JWT token contained in request (can be a table) or nil
 -- @return err
 local function retrieve_token(conf)
-  local args = kong.request.get_query()
-  for _, v in ipairs(conf.uri_param_names) do
-    if args[v] then
-      return args[v]
-    end
-  end
-
-  local var = ngx.var
-  for _, v in ipairs(conf.cookie_names) do
-    local cookie = var["cookie_" .. v]
-    if cookie and cookie ~= "" then
-      return cookie
-    end
-  end
-
-  local authorization_header = kong.request.get_header("authorization")
-  if authorization_header then
-    local m, err = re_match(authorization_header, "\\s*[Bb]earer\\s+(.+)")
-    if not m then
-      return authorization_header
-    end
-    local iterator, iter_err = re_gmatch(authorization_header, "\\s*[Bb]earer\\s+(.+)")
-    if not iterator then
-      return nil, iter_err
+    local args = kong.request.get_query()
+    for _, v in ipairs(conf.uri_param_names) do
+        if args[v] then
+            return args[v]
+        end
     end
 
-    local m, err = iterator()
-    if err then
-      return nil, err
+    local var = ngx.var
+    for _, v in ipairs(conf.cookie_names) do
+        local cookie = var["cookie_" .. v]
+        if cookie and cookie ~= "" then
+            return cookie
+        end
     end
 
-    if m and #m > 0 then
-      return m[1]
+    local authorization_header = kong.request.get_header("authorization")
+    if authorization_header then
+        local m, err = re_match(authorization_header, "\\s*[Bb]earer\\s+(.+)")
+        if not m then
+            return authorization_header
+        end
+        local iterator, iter_err = re_gmatch(authorization_header, "\\s*[Bb]earer\\s+(.+)")
+        if not iterator then
+            return nil, iter_err
+        end
+
+        local m, err = iterator()
+        if err then
+            return nil, err
+        end
+
+        if m and #m > 0 then
+            return m[1]
+        end
     end
-  end
 end
-
 
 --- do_authentication is to verify JWT firebase token
 ---   ref to: https://firebase.google.com/docs/auth/admin/verify-id-tokens
 local function do_authentication(conf)
-  local token, err = retrieve_token(conf)
-  if err then
-    kong.log.err(err)
-    return kong.response.exit(500, { message = "An unexpected error occurred" })
-  end
-  
-  local token_type = type(token)
-  if token_type ~= "string" then
-    if token_type == "nil" then
-      return false, { status = 401, message = "Unauthorized" }
-    elseif token_type == "table" then
-      return false, { status = 401, message = "Multiple tokens provided" }
-    else
-      return false, { status = 401, message = "Unrecognizable token" }
+    local token, err = retrieve_token(conf)
+    if err then
+        kong.log.err(err)
+        return kong.response.exit(500, {
+            message = "An unexpected error occurred"
+        })
     end
-  end
 
-  -- Decode token
-  local jwt, err = jwt_decoder:new(token)
-  if err then
-    return false, { status = 401, message = "Bad token; " .. tostring(err) }
-  end
-
-  local claims = jwt.claims
-  local header = jwt.header
-
-  -- Verify Header
-  -- -- Verify "alg"
-  local hd_alg = jwt.header.alg
-  kong.log.debug("### header.alg: " .. hd_alg)
-  if not hd_alg or hd_alg ~= "RS256" then
-    return false, { status = 401, message = "Invalid algorithm" }
-  end
- 
-  -- Verify Payload
-  -- -- Verify "iss"
-  local pl_iss = jwt.claims.iss
-  kong.log.debug("### payload.iss : " .. pl_iss)
-  local conf_iss = "https://securetoken.google.com/" .. conf.project_id
-  kong.log.debug("### conf_iss: " .. conf_iss)
-  if not pl_iss or pl_iss ~= conf_iss then
-    return false, { status = 401, message = "Invalid iss in the header" }
-  end
-  -- -- Verify the "aud"
-  local pl_aud = jwt.claims.aud
-  kong.log.debug("### payload.aud: " .. pl_aud)
-  kong.log.debug("### conf.project_id: " .. conf.project_id)
-  if not pl_aud or pl_aud ~= conf.project_id then
-    return false, { status = 401, message = "Invalid aud in the header"}
-  end
-  -- -- Verify the "exp" 
-  kong.log.debug("### Checking exp ... ")
-  local ok_claims, errors = jwt:verify_registered_claims(conf.claims_to_verify)
-  if not ok_claims then
-    return false, { status = 401, errors = errors }
-  end
-  -- -- Verify the "exp" with "maximum_expiration" value
-  kong.log.debug("### Checking additional maximum expiration ...")
-  if conf.maximum_expiration ~= nil and conf.maximum_expiration > 0 then
-    local ok, errors = jwt:check_maximum_expiration(conf.maximum_expiration)
-    if not ok then
-      return false, { status = 401, errors = errors }
+    local token_type = type(token)
+    if token_type ~= "string" then
+        if token_type == "nil" then
+            return false, {
+                status = 401,
+                message = "Unauthorized"
+            }
+        elseif token_type == "table" then
+            return false, {
+                status = 401,
+                message = "Multiple tokens provided"
+            }
+        else
+            return false, {
+                status = 401,
+                message = "Unrecognizable token"
+            }
+        end
     end
-  end
 
-  -- -- Verify the "sub" must be non-empty
-  local pl_sub  = jwt.claims.sub
-  kong.log.debug("### payload.sub: " .. pl_sub)
-  if not pl_sub then
-    return false, { status = 401, message = "the sub must be non-empty in the header" }
-  end
-  -- -- Pud user-id into request header
-  if conf.uid_inreq_header then
-    ngx_set_header(local_constants.HEADERS.TOKEN_USER_ID, pl_sub)
-    kong.log.debug("### Set " .. local_constants.HEADERS.TOKEN_USER_ID .. ": " .. pl_sub .. "in the request header")
-  end
-
-
-
-  -- Finally -- Verify the signature
-  -- Finally, ensure that the ID token was signed by the private key corresponding to the token's kid claim. 
-  -- Grab the public key from https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com 
-  -- and use a JWT library to verify the signature. Use the value of max-age in the Cache-Control header of the response 
-  -- from that endpoint to know when to refresh the public keys.
-  -- Now verify the JWT signature
-  local kid = jwt.header.kid
-  -- -- Get public key in memory file
-  -- -- -- if it is invalied or empty
-  -- -- -- -- grabs a new public key from google api
-  -- -- -- -- push this key into memory file
-  -- -- -- -- assign this key to public_key
-  local public_key = get_public_key_from_file(shm)
-  kong.log.debug(public_key)
-  if not pcall(openssl_pkey.new, public_key) or public_key == nil then
-    kong.log.info("Public key in a file is empty or invalid")
-    --local t_public_key = grab_1st_public_key()
-    local t_public_key = grab_public_key_bykid(kid)
-    local ok, err = push_public_key_into_file(t_public_key, shm)
-    if not ok then
-      kong.log.err("### ERROR: Failed to push a new publish key into SHM dir! FIX IT NOW")
+    -- Decode token
+    local jwt, err = jwt_decoder:new(token)
+    if err then
+        return false, {
+            status = 401,
+            message = "Bad token; " .. tostring(err)
+        }
     end
-    public_key = t_public_key
-  end
-  -- -- By using jwt lib to verify signature
-  -- -- If failed
-  -- -- -- grab a new public key from the google api 
-  -- -- -- store this public key into memory file if it verifies  successful at 2nd time
-  if not jwt:verify_signature(public_key) then
-    kong.log.debug("### Grabbing pubkey from google URL ...")
-    local t_public_key = grab_public_key_bykid(kid)
-    if jwt:verify_signature(t_public_key) then
-      local ok, err = push_public_key_into_file(t_public_key, shm)
-      if not ok then
-        kong.log.err("### ERROR: Failed to push a new publish key into SHM dir! FIX IT NOW")
-      end
-      return true
+
+    local claims = jwt.claims
+    local header = jwt.header
+
+    -- Verify Header
+    -- -- Verify "alg"
+    local hd_alg = jwt.header.alg
+    kong.log.debug("### header.alg: " .. hd_alg)
+    if not hd_alg or hd_alg ~= "RS256" then
+        return false, {
+            status = 401,
+            message = "Invalid algorithm"
+        }
     end
-    return false, { status = 401, message = "Invalid signature" }
-  end
-  return true
+
+    -- Verify Payload
+    -- -- Verify "iss"
+    local pl_iss = jwt.claims.iss
+    kong.log.debug("### payload.iss : " .. pl_iss)
+    local conf_iss = "https://securetoken.google.com/" .. conf.project_id
+    kong.log.debug("### conf_iss: " .. conf_iss)
+    if not pl_iss or pl_iss ~= conf_iss then
+        return false, {
+            status = 401,
+            message = "Invalid iss in the header"
+        }
+    end
+    -- -- Verify the "aud"
+    local pl_aud = jwt.claims.aud
+    kong.log.debug("### payload.aud: " .. pl_aud)
+    kong.log.debug("### conf.project_id: " .. conf.project_id)
+    if not pl_aud or pl_aud ~= conf.project_id then
+        return false, {
+            status = 401,
+            message = "Invalid aud in the header"
+        }
+    end
+    -- -- Verify the "exp" 
+    kong.log.debug("### Checking exp ... ")
+    local ok_claims, errors = jwt:verify_registered_claims(conf.claims_to_verify)
+    if not ok_claims then
+        return false, {
+            status = 401,
+            errors = errors
+        }
+    end
+    -- -- Verify the "exp" with "maximum_expiration" value
+    kong.log.debug("### Checking additional maximum expiration ...")
+    if conf.maximum_expiration ~= nil and conf.maximum_expiration > 0 then
+        local ok, errors = jwt:check_maximum_expiration(conf.maximum_expiration)
+        if not ok then
+            return false, {
+                status = 401,
+                errors = errors
+            }
+        end
+    end
+
+    -- -- Verify the "sub" must be non-empty
+    local pl_sub = jwt.claims.sub
+    kong.log.debug("### payload.sub: " .. pl_sub)
+    if not pl_sub then
+        return false, {
+            status = 401,
+            message = "the sub must be non-empty in the header"
+        }
+    end
+    -- -- Put user-id into request header
+    if conf.uid_inreq_header then
+        ngx_set_header(local_constants.HEADERS.TOKEN_USER_ID, pl_sub)
+        kong.log.debug("### Set " .. local_constants.HEADERS.TOKEN_USER_ID .. ": " .. pl_sub .. "in the request header")
+    end
+
+
+    --  put user email into request header --- 
+    local user_email = jwt.claims.email
+    if user_email then
+        kong.log.debug("### payload.sub: " .. user_email)
+        ngx_set_header(local_constants.HEADERS.TOKEN_USER_EMAIL, user_email)
+    end
+
+    -- Finally -- Verify the signature
+    -- Finally, ensure that the ID token was signed by the private key corresponding to the token's kid claim. 
+    -- Grab the public key from https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com 
+    -- and use a JWT library to verify the signature. Use the value of max-age in the Cache-Control header of the response 
+    -- from that endpoint to know when to refresh the public keys.
+    -- Now verify the JWT signature
+    local kid = jwt.header.kid
+    -- -- Get public key in memory file
+    -- -- -- if it is invalied or empty
+    -- -- -- -- grabs a new public key from google api
+    -- -- -- -- push this key into memory file
+    -- -- -- -- assign this key to public_key
+    local public_key = get_public_key_from_file(shm)
+    kong.log.debug(public_key)
+    if not pcall(openssl_pkey.new, public_key) or public_key == nil then
+        kong.log.info("Public key in a file is empty or invalid")
+        -- local t_public_key = grab_1st_public_key()
+        local t_public_key = grab_public_key_bykid(kid)
+        local ok, err = push_public_key_into_file(t_public_key, shm)
+        if not ok then
+            kong.log.err("### ERROR: Failed to push a new publish key into SHM dir! FIX IT NOW")
+        end
+        public_key = t_public_key
+    end
+    -- -- By using jwt lib to verify signature
+    -- -- If failed
+    -- -- -- grab a new public key from the google api 
+    -- -- -- store this public key into memory file if it verifies  successful at 2nd time
+    if not jwt:verify_signature(public_key) then
+        kong.log.debug("### Grabbing pubkey from google URL ...")
+        local t_public_key = grab_public_key_bykid(kid)
+        if jwt:verify_signature(t_public_key) then
+            local ok, err = push_public_key_into_file(t_public_key, shm)
+            if not ok then
+                kong.log.err("### ERROR: Failed to push a new publish key into SHM dir! FIX IT NOW")
+            end
+            return true
+        end
+        return false, {
+            status = 401,
+            message = "Invalid signature"
+        }
+    end
+    return true
 end
 
+
+local function set_consumer(consumer, conf)
+    kong.client.authenticate(consumer)
+    local set_header = kong.service.request.set_header
+    local clear_header = kong.service.request.clear_header
+    if consumer.id then
+      set_header(constants.HEADERS.CONSUMER_ID, consumer.id)
+    else
+      clear_header(constants.HEADERS.CONSUMER_ID)
+    end
+  
+    if consumer.username then
+      set_header(constants.HEADERS.CONSUMER_USERNAME, consumer.username)
+    else
+      clear_header(constants.HEADERS.CONSUMER_USERNAME)
+    end
+
+    if not (consumer.username == conf.anonymous) then
+        clear_header(constants.HEADERS.ANONYMOUS)
+    end
+  end
 
 function JwtHandler:access(conf)
-  local ok, err = do_authentication(conf)
-  if not ok then
-    return kong.response.exit(err.status, err.errors or { message = err.message })
-  end
+    if conf.anonymous and kong.client.get_credential() then
+        -- we're already authenticated, and we're configured for using anonymous,
+        -- hence we're in a logical OR between auth methods and we're already done.
+        return
+    end
+    local ok, err = do_authentication(conf)
+    if not ok then
+        if conf.anonymous then
+            -- Fall back to anonymous user if we can't authenticate
+            local consumer_cache_key = kong.db.consumers:cache_key(conf.anonymous)
+            local consumer, err = kong.cache:get(consumer_cache_key, nil, kong.client.load_consumer, conf.anonymous,
+                true)
+            if err then
+                return error(err)
+            end
+            set_consumer(consumer, conf)
+        else
+            return kong.response.error(err.status, err.message, err.headers)
+        end
+    else
+        local consumer_cache_key = kong.db.consumers:cache_key(conf.jwt_service_user)
+        local consumer, err = kong.cache:get(consumer_cache_key, nil, kong.client.load_consumer, conf.jwt_service_user,
+            true)
+        if err then
+            return error(err)
+        end
+        set_consumer(consumer, conf)
+    end
 end
-
 
 return JwtHandler

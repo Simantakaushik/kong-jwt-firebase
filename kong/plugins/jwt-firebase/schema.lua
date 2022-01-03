@@ -4,7 +4,6 @@ local typedefs = require "kong.db.schema.typedefs"
 return {
   name = "jwt-firebase",
   fields = {
-    { run_on = typedefs.run_on_first },
     { protocols = typedefs.protocols_http },
     { config = {
         type = "record",
@@ -33,6 +32,8 @@ return {
             between = { 0, 31536000 },
           }, },
 	  {project_id = { type = "string", default = "fb-project" }, },
+    { anonymous = { type = "string" }, },
+    { jwt_service_user = { type = "string", required= true }, },
         },
       },
     },
