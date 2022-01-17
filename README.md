@@ -1,4 +1,4 @@
-## JWT Firebase custom [Kong](https://www.getkong.org) plugins
+## JWT Firebase custom [Kong](https://www.getkong.org) plugin
 
 #### This is forked from original repo to support kong version 2.0+ and adding ability to define an anonymous user and JWT service user.
 #### JWT Firbase plugin
