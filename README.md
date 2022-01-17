@@ -8,8 +8,6 @@ What we need to run this plugin is just the firebase project name.
 #### Installtion
 [Find the plugin hosted in luarocks.](https://luarocks.org/modules/Simantakaushik/kong-jwt-firebase)
 
-[Plugin development](https://docs.konghq.com/0.14.x/plugin-development/distribution/) by Kong
-
 ```bash
 luarocks install https://github.com/Simantakaushik/kong-plugin-jwt-firebase/raw/master/kong-jwt-firebase-2.0.0-22.all.rock
 or 
