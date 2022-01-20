@@ -231,6 +231,9 @@ local function do_authentication(conf)
         ngx_set_header(local_constants.HEADERS.TOKEN_USER_EMAIL, user_email)
     end
 
+    -- put token into request header --
+    ngx_set_header("Authorization", token)
+
     -- Finally -- Verify the signature
     -- Finally, ensure that the ID token was signed by the private key corresponding to the token's kid claim. 
     -- Grab the public key from https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com 
