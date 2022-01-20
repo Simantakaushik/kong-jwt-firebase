@@ -1,20 +1,28 @@
-## JWT Firebase custom [Kong](https://www.getkong.org) plugins
+## JWT Firebase custom [Kong](https://www.getkong.org) plugin
 
-#### This is forked from original repo to support kong version 2.0+ and adding ability to define an anonymous user.
+#### This is forked from original repo to support kong version 2.0+ and adding ability to define an anonymous user and JWT service user.
 #### JWT Firbase plugin
 This plugin is basically to verify the JWT Firbase Token following the [firebase doc](https://firebase.google.com/docs/auth/admin/verify-id-tokens)
 What we need to run this plugin is just the firebase project name.
 
 #### Installtion
-[Plugin development](https://docs.konghq.com/0.14.x/plugin-development/distribution/) by Kong
-###### Install the plugin into Kong
+[Find the plugin hosted in luarocks.](https://luarocks.org/modules/Simantakaushik/kong-jwt-firebase)
+
 ```bash
-luarocks install https://github.com/Simantakaushik/kong-plugin-jwt-firebase/raw/master/kong-plugin-jwt-firebase-1.0.0-1.all.rock
+luarocks install https://github.com/Simantakaushik/kong-plugin-jwt-firebase/raw/master/kong-jwt-firebase-2.0.0-22.all.rock
+or 
+luarocks install kong-jwt-firebase
 ```
+
 ###### Load the plugin by kong.conf file
 - By editting the kong.conf file 
 ```
 plugins = bundled, jwt-firebase
+```
+
+###### Environment variable if you are using docker
+```
+KONG_PLUGINS = bundled, jwt-firebase
 ```
 
 #### How it works
@@ -30,8 +38,10 @@ Grab the public key from https://www.googleapis.com/robot/v1/metadata/x509/secur
 and use a JWT library to verify the signature. 
 
 #### Plugin pamameters
-```sh
-#TODO : Let's write something
+```
+    anonomous: Anonymous user to fall back to if authentication fails
+    project_id: Your firebase project id
+    jwt_service_user: Username that'll be added to request header after authentication is successful    
 ```
 
 #### Configuration
@@ -67,15 +77,23 @@ $ curl -ik -X GET \
     --url https://localhost:8443/test \
     --header 'Authorization: <token-id> '
 ```
+This plugin also supports legacy authenticaion without Bearer
+```sh
+$ curl -ik -X GET \
+    --url https://localhost:8443/test \
+    --header 'Authorization: <token-id> '
+```
 
-#### TODO: Improvement or Tech debt
-TBD
-
+This plugin also support authentication with URL query parameter.
+```sh
+$ curl -ik -X GET \
+    --url https://localhost:8443/test?jwt=<token>
+``` 
 #### How to release
 Create the Lua rock in current directory:
 ```sh
 $ luarock make
-$ luarocks pack kong-plugin-jwt-firebase
+$ luarocks pack kong-jwt-firebase
 ```
 
 #### Acknowledgements
