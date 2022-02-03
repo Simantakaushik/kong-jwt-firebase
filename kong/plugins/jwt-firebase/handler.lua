@@ -223,7 +223,6 @@ local function do_authentication(conf)
         kong.log.debug("### Set " .. local_constants.HEADERS.TOKEN_USER_ID .. ": " .. pl_sub .. "in the request header")
     end
 
-
     --  put user email into request header --- 
     local user_email = jwt.claims.email
     if user_email then
@@ -280,30 +279,30 @@ local function do_authentication(conf)
     return true
 end
 
-
 local function set_consumer(consumer, conf)
     kong.client.authenticate(consumer)
     local set_header = kong.service.request.set_header
     local clear_header = kong.service.request.clear_header
     if consumer.id then
-      set_header(constants.HEADERS.CONSUMER_ID, consumer.id)
+        set_header(constants.HEADERS.CONSUMER_ID, consumer.id)
     else
-      clear_header(constants.HEADERS.CONSUMER_ID)
+        clear_header(constants.HEADERS.CONSUMER_ID)
     end
-  
+
     if consumer.username then
-      set_header(constants.HEADERS.CONSUMER_USERNAME, consumer.username)
+        set_header(constants.HEADERS.CONSUMER_USERNAME, consumer.username)
     else
-      clear_header(constants.HEADERS.CONSUMER_USERNAME)
+        clear_header(constants.HEADERS.CONSUMER_USERNAME)
     end
 
     if not (consumer.username == conf.anonymous) then
         clear_header(constants.HEADERS.ANONYMOUS)
     end
-  end
+end
 
 function JwtHandler:access(conf)
-    if conf.anonymous and kong.client.get_credential() then
+    local auth_user = kong.client.get_consumer()
+    if (conf.anonymous and auth_user and auth_user.username ~= conf.anonymous) then
         -- we're already authenticated, and we're configured for using anonymous,
         -- hence we're in a logical OR between auth methods and we're already done.
         return
